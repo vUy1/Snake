@@ -1,0 +1,34 @@
+# Head-to-head profile: two snakes, one map, elimination (no respawn — first to
+# die loses). Used for the knockout bracket and for practising a specific
+# match-up. Scores are not comparable with the four-snake standard profile.
+
+[game]
+snakes_per_game = 2
+max_turns = 500
+seed = 1234
+
+[snake]
+start_length = 5
+growth_per_food = 5
+
+[food]
+starting_food_centre = 1
+spawn_chance = 0.15
+minimum = 1
+[rules]
+wrapped = false
+head_to_head = "longer_wins"
+respawn = false
+
+[evaluation]
+per_move_timeout_ms = 100.0
+max_consecutive_failures = 3
+record_replays = "failures_and_samples"
+max_debug_bytes = 4096
+
+[[map]]
+id = "duel"
+name = "Duel"
+width = 11
+height = 11
+spawns = [[1, 5], [9, 5], [5, 1], [5, 9]]

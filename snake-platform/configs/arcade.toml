@@ -1,0 +1,50 @@
+# A bigger, busier respawn board: six snakes on 13x13, more food, a shorter
+# respawn wait. Same rules family as `standard.toml` (respawn is the default),
+# just turned up for a chaotic watch or a crowded practice.
+
+[game]
+snakes_per_game = 6
+max_turns = 600
+seed = 1234
+
+[snake]
+start_length = 5
+growth_per_food = 5
+
+[food]
+starting_food_centre = 1
+spawn_chance = 0.22
+minimum = 3
+[rules]
+wrapped = false
+head_to_head = "longer_wins"
+respawn = true
+respawn_delay_turns = 5
+
+[evaluation]
+per_move_timeout_ms = 100.0
+max_consecutive_failures = 3
+record_replays = "failures_and_samples"
+max_debug_bytes = 4096
+
+[[map]]
+id = "yard"
+name = "The Yard"
+width = 13
+height = 13
+spawns = [
+  [1, 1], [1, 11], [11, 1], [11, 11], [6, 1], [6, 11], [1, 6], [11, 6], [6, 6],
+]
+
+[[map]]
+id = "maze"
+name = "Maze"
+width = 13
+height = 13
+# No obstacles this year: the stdio protocol does not carry them, so a snake
+# cannot be told one is there. A board with obstacles would be a board full of
+# invisible walls.
+obstacles = []
+spawns = [
+  [1, 1], [1, 11], [11, 1], [11, 11], [6, 1], [6, 11], [1, 6], [11, 6],
+]

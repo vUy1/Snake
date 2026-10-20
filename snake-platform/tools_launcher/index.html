@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Snake Platform · Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+<style>
+  :root {
+    --paper:#f4f1e8; --paper-2:#efeadd; --panel:#eae4d4;
+    --sumi:#1a1a17; --ink-soft:#4a463d; --dim:#837c6a; --line:#d8d1bd;
+    --seal:#c8452f; --accent:#2f3d6b;
+    --serif:"Newsreader","Iowan Old Style",Georgia,serif;
+    --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--sumi); font-family: var(--serif); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding-block: 30px 60px; padding-inline: 18px; }
+  h1 { font-size: 28px; font-weight: 500; margin: 0 0 2px; letter-spacing: .01em; }
+  .sub { color: var(--dim); font-family: var(--mono); font-size: 12px; letter-spacing: .06em; margin-bottom: 26px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--paper-2); padding: 18px; }
+  .card h2 { margin: 0 0 14px; font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); font-weight: 500; }
+  label { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--dim); text-transform: uppercase; margin: 12px 0 4px; }
+  select, input {
+    width: 100%; background: var(--paper); color: var(--sumi); border: 1px solid var(--line);
+    font-family: var(--serif); font-size: 15px; padding: 8px;
+  }
+  .slots { display: grid; gap: 6px; }
+  button {
+    margin-top: 18px; width: 100%; background: var(--sumi); color: var(--paper); border: 0;
+    font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    padding: 12px; cursor: pointer;
+  }
+  button:hover { background: var(--accent); }
+  button.ghost { background: var(--paper); color: var(--sumi); border: 1px solid var(--line); }
+  button.ghost:hover { background: var(--paper-2); border-color: var(--sumi); }
+  .replays a {
+    display: block; color: var(--sumi); text-decoration: none; font-size: 14px;
+    padding: 7px 8px; border-bottom: 1px solid var(--line);
+  }
+  .replays a:hover { color: var(--seal); }
+  iframe { width: 100%; height: 80vh; border: 1px solid var(--line); margin-top: 16px; background: var(--paper); }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Snake Platform</h1>
+  <div class="sub">local dashboard · the engine is the only authority</div>
+
+  <div id="setup" class="grid">
+    <div class="card">
+      <h2>Assemble a game</h2>
+      <label>Profile</label>
+      <select id="config"></select>
+      <label>Snakes</label>
+      <div class="slots" id="slots"></div>
+      <label>Seed</label>
+      <input id="seed" type="number" value="1" />
+      <button id="run">run game</button>
+    </div>
+    <div class="card">
+      <h2>Recent replays</h2>
+      <div class="replays" id="replays"></div>
+    </div>
+  </div>
+
+  <div id="watch" class="hide">
+    <button class="ghost" id="back">← new game</button>
+    <iframe id="frame"></iframe>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let baselines = [], submissions = [], hasMySnake = false;
+const SPG = {};   // profile name -> snakes per game, filled from /api/configs
+
+async function boot() {
+  const [b, c, s] = await Promise.all([
+    fetch("/api/baselines").then(r => r.json()),
+    fetch("/api/configs").then(r => r.json()),
+    fetch("/api/submissions").then(r => r.json()),
+  ]);
+  baselines = b.baselines;
+  submissions = s.submissions || [];
+  hasMySnake = !!s.my_snake;
+  for (const cfg of c.configs) SPG[cfg.name] = cfg.snakes;
+  // The server lists the league's profile first; that is the one to preselect,
+  // so a first run is the game the student is actually marked on.
+  $("config").innerHTML = c.configs.map((cfg, i) => `<option ${i === 0 ? "selected" : ""}>${cfg.name}</option>`).join("");
+  buildSlots();
+  loadReplays();
+  $("config").onchange = buildSlots;
+}
+
+/* The gauntlet is separated out, because it is a different kind of opponent:
+ * the reference snakes are examples to read, and these three are a ladder to
+ * climb. Same list from the engine either way. */
+const isRung = (n) => n.startsWith("gauntlet_");
+
+function optionsHtml(selected) {
+  const option = (n) => `<option value="${n}" ${n === selected ? "selected" : ""}>${n}</option>`;
+  // Your own snake first, and on its own, because it is the one you came here
+  // to watch - everything below it is something to measure it against.
+  const mine = hasMySnake
+    ? `<optgroup label="yours">${option("my-snake")}</optgroup>`
+    : "";
+  const nat = baselines.filter(n => !isRung(n)).map(option);
+  const rungs = baselines.filter(isRung).map(option);
+  const sub = submissions.map(n => `<option value="sub:${n}">▸ ${n}</option>`);
+  return mine + `<optgroup label="reference">${nat.join("")}</optgroup>` +
+         (rungs.length ? `<optgroup label="the gauntlet">${rungs.join("")}</optgroup>` : "") +
+         (sub.length ? `<optgroup label="submissions">${sub.join("")}</optgroup>` : "");
+}
+
+function buildSlots() {
+  const n = SPG[$("config").value] || 4;
+  // Your snake takes the first seat, then `benchmark` - the bar it is meant
+  // to clear - then the rest. So starting the dashboard and pressing run plays
+  // your snake against something meaningful without choosing anything.
+  const picks = hasMySnake
+    ? ["my-snake", "benchmark", "survivor", "hungry", "wander", "coward", "hunter", "ouroboros"]
+    : ["benchmark", "survivor", "hungry", "wander", "coward", "hunter", "ouroboros", "edgerunner"];
+  $("slots").innerHTML = "";
+  for (let i = 0; i < n; i++) {
+    const sel = document.createElement("select");
+    sel.innerHTML = optionsHtml(picks[i % picks.length]);
+    $("slots").appendChild(sel);
+  }
+}
+
+async function loadReplays() {
+  const r = await fetch("/api/replays").then(r => r.json());
+  $("replays").innerHTML = (r.replays || []).slice(0, 20)
+    .map(n => `<a href="#" data-r="${n}">${n}</a>`).join("") || "<div style='color:var(--dim);font-size:13px'>none yet</div>";
+  $("replays").querySelectorAll("a").forEach(a => a.onclick = (e) => {
+    e.preventDefault();
+    watch(`/viewer.html?replay=${encodeURIComponent(a.dataset.r)}`);
+  });
+}
+
+$("run").onclick = async () => {
+  const entrants = [...$("slots").querySelectorAll("select")].map(s => s.value);
+  const seed = +$("seed").value;
+  const config = $("config").value;
+  const res = await fetch("/api/run", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entrants, seed, config }),
+  }).then(r => r.json());
+  watch(`/viewer.html?game=${encodeURIComponent(res.game_id)}&seed=${seed}`);
+  setTimeout(loadReplays, 1500);
+};
+
+$("back").onclick = () => { $("watch").classList.add("hide"); $("setup").classList.remove("hide"); $("frame").src = "about:blank"; loadReplays(); };
+
+function watch(url) {
+  $("frame").src = url;
+  $("setup").classList.add("hide");
+  $("watch").classList.remove("hide");
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+# The league profile: the rules league games actually use.
+#
+# One map, one game shape. Every league game is four snakes on a bare 35x35
+# board — nothing on it but the snakes and the single
+# apple. There is no map pool and no draw: the map is the constant, so a
+# season's results differ by play and seed only.
+#
+# **Respawns are on.** An eliminated snake comes back at a safe cell
+# `respawn_delay_turns` later, so a death costs you tempo rather than the game,
+# and every game runs the full turn cap. Placement therefore ranks on what you
+# did with the time — food eaten and kills, fewest deaths breaking the tie —
+# not on how long you lasted.
+#
+# The board **wraps**: it is a torus, not a room. Walking off the right edge
+# brings you back on the left, off the top brings you back at the bottom, and
+# the same in reverse. There are no wall deaths here — the only ways out are
+# a collision, an obstacle, or starvation. Distances wrap too, so the short way
+# to a piece of food may be backwards through an edge.
+#
+# Changing any value here moves the configuration hash, which is what makes a
+# result reproducible — tune between cohorts, never mid-season.
+#
+# The practice profiles (`standard`, `large`, `arcade`) also respawn but do not
+# wrap and draw from a map pool; `classic` is the older last-snake-standing
+# league profile, kept for practice and for reading back seasons played under
+# it; `duel` is the knockout.
+
+[game]
+snakes_per_game = 4
+max_turns = 2000
+seed = 1234
+
+[snake]
+start_length = 5
+growth_per_food = 5
+
+[food]
+# **Exactly one piece of food on the board, at every moment of the game.**
+#
+# Four settings hold that between them: `minimum` puts a piece back the turn it
+# is eaten, `spawn_chance = 0` never adds a second, `starting_food_centre` opens
+# the game with the one in the middle, and `starting_food_per_snake = 0` drops
+# Battlesnake's opening apple beside each player - which on turn zero would be
+# four more than this board is meant to carry.
+#
+# On a 35x35 torus that single square is the whole contest. 1225 cells is more
+# room than four snakes need, so they would rarely meet if they were not all
+# going to the same place; the food is what makes the board a game rather than
+# four snakes alone in a field. It also makes the trip the decision: the
+# distances here are long enough that "is this one worth crossing for" is a
+# real question, where on a small crowded board it never was.
+starting_food_per_snake = 0
+starting_food_centre = 1
+spawn_chance = 0.0
+minimum = 1
+[rules]
+# A torus: no edges, no wall deaths. See the header.
+wrapped = true
+head_to_head = "longer_wins"
+respawn = true
+respawn_delay_turns = 5
+
+[evaluation]
+per_move_timeout_ms = 50.0
+max_consecutive_failures = 3
+record_replays = "failures_and_samples"
+max_debug_bytes = 4096
+
+# --- the map ------------------------------------------------------------------
+# Exactly one, and nothing on it. There is no map pool this year and no
+# obstacles: the board is a bare 35x35 torus, so the only things on it are the
+# snakes and the one apple. Spawn points are shuffled per seed and the first
+# `snakes_per_game` are used.
+
+[[map]]
+id = "arena"
+name = "Arena"
+width = 35
+height = 35
+obstacles = []
+# Spread over the torus rather than pushed into "corners": on a wrapped board
+# (1, 1) and (33, 33) are four cells apart, not sixty-six. These eight are
+# never closer than 16 apart by the wrapping distance.
+spawns = [[4, 4], [4, 22], [22, 4], [22, 22], [13, 13], [13, 31], [31, 13], [31, 31]]

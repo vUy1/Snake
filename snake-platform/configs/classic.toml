@@ -1,0 +1,64 @@
+# The league profile: the rules league games actually use.
+#
+# The last-snake-standing game: no respawns. A snake that is eliminated is out,
+# and the game ends the moment one snake (or none) remains. Results rank on how
+# long you survived, then length, then food.
+#
+# The board **wraps**: it is a torus, not a room. Walking off the right edge
+# brings you back on the left, off the top brings you back at the bottom, and
+# the same in reverse. There are no wall deaths here — the only ways out are
+# a collision or an obstacle. Distances wrap too, so
+# the short way to a piece of food may be backwards through an edge.
+#
+# The other profiles (`standard`, `large`, `arcade`) respawn eliminated snakes
+# and do not wrap. Same board and map pool as `standard.toml`.
+
+[game]
+snakes_per_game = 4
+max_turns = 500
+seed = 1234
+
+[snake]
+start_length = 5
+growth_per_food = 5
+
+[food]
+starting_food_centre = 1
+spawn_chance = 0.15
+minimum = 1
+[rules]
+# A torus: no edges, no wall deaths. See the header.
+wrapped = true
+head_to_head = "longer_wins"
+respawn = false
+
+[evaluation]
+per_move_timeout_ms = 100.0
+max_consecutive_failures = 3
+record_replays = "failures_and_samples"
+max_debug_bytes = 4096
+
+[[map]]
+id = "arena"
+name = "Arena"
+width = 11
+height = 11
+spawns = [[1, 1], [1, 9], [9, 1], [9, 9], [5, 1], [5, 9], [1, 5], [9, 5]]
+
+[[map]]
+id = "pillars"
+name = "Pillars"
+width = 11
+height = 11
+# No obstacles this year: the stdio protocol does not carry them, so a snake
+# cannot be told one is there. A board with obstacles would be a board full of
+# invisible walls.
+obstacles = []
+spawns = [[1, 1], [1, 9], [9, 1], [9, 9], [5, 1], [5, 9], [1, 5], [9, 5]]
+
+[[map]]
+id = "royale"
+name = "Royale"
+width = 11
+height = 11
+spawns = [[1, 1], [1, 9], [9, 1], [9, 9], [5, 1], [5, 9], [1, 5], [9, 5]]
