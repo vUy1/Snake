@@ -84,14 +84,19 @@ public class Snake {
         int[][] myChain = parseCells(String.join(" ", Arrays.copyOfRange(mine, 3, mine.length)));
         int[] head = myChain.length > 0 ? myChain[0] : new int[] {0, 0};
 
+        Board board = new Board(width, height, snakes);
+
         // Everyone else. Dead snakes are not on the board - skip them.
+        List<int[]> rivals = new ArrayList<>();
         for (int i = 0; i < snakes.length; i++) {
             if (i == me) continue;
             String[] other = snakes[i].trim().split("\\s+");
             if (!other[0].equals("alive")) continue;
             int otherLength = Integer.parseInt(other[1]);
             int[][] otherChain = parseCells(String.join(" ", Arrays.copyOfRange(other, 3, other.length)));
+            if (otherChain.length == 0) continue;
             // ... otherChain[0] is their head, same shape as yours.
+            rivals.add(new int[] {otherChain[0][0], otherChain[0][1], otherLength});
         }
 
         // Nothing above is used. That is the whole of the assignment: work out
@@ -102,7 +107,49 @@ public class Snake {
         //
         // Asking for the direction you came from is not a reversal; you just
         // carry straight on.
-        return String.valueOf(rng.nextInt(4));
+        if (!alive || myChain.length == 0) return "0";
+
+        int bestMove = 0;
+        double bestScore = -Double.MAX_VALUE;
+        for (int d = 0; d < 4; d++) {
+            int nx = board.stepX(head[0], d);
+            int ny = board.stepY(head[1], d);
+            if (board.occupied(nx, ny)) continue;
+
+            double score = 0;
+
+            // heads that could land on the same cell next turn
+            boolean danger = false;
+            boolean prey = false;
+            for (int[] r : rivals) {
+                for (int e = 0; e < 4; e++) {
+                    if (board.stepX(r[0], e) == nx && board.stepY(r[1], e) == ny) {
+                        if (r[2] >= length) danger = true;
+                        else prey = true;
+                    }
+                }
+            }
+            if (danger) score -= 100000;
+            else if (prey) score += 5;
+
+            int[] fill = board.fill(nx, ny, appleX, appleY);
+            int area = fill[0];
+            int dist = fill[1];
+
+            if (area < length) score -= 50000 + (length - area) * 100;
+            else score += Math.min(area, length * 3) * 0.05;
+
+            if (dist < 0) score -= 1000;
+            else score -= dist * 10;
+
+            score += rng.nextDouble() * 0.001;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = d;
+            }
+        }
+        return String.valueOf(bestMove);
     }
 
     /**
@@ -156,8 +203,99 @@ public class Snake {
      * the exercise, and a snake that answers these well is most of a good one.
      */
     static class Board {
+        int width;
+        int height;
+        boolean[][] grid;
+
         Board(int width, int height, String[] snakes) {
-            // Read what you need out of the state, once, here.
+            this.width = width;
+            this.height = height;
+            this.grid = new boolean[height][width];
+            
+            // Build the basic obstacle map
+            for (String s : snakes) {
+                String[] parts = s.trim().split("\\s+");
+                if (!parts[0].equals("alive")) continue;
+                
+                // Extract coordinates
+                int[][] chain = parseCells(String.join(" ", Arrays.copyOfRange(parts, 3, parts.length)));
+                
+                // Expand chain into cells (handling wrapping/teleports)
+                for (int i = 0; i < chain.length; i++) {
+                    int x = chain[i][0];
+                    int y = chain[i][1];
+                    grid[y][x] = true; // Mark as occupied
+                    
+                    // Simple line filler between points (excluding teleports)
+                    if (i > 0 && !(chain[i][0] == chain[i-1][0] && chain[i][1] == chain[i-1][1])) {
+                        int px = chain[i-1][0];
+                        int py = chain[i-1][1];
+                        // If they are on the same column or row without wrapping
+                        if (px == x) {
+                            int min = Math.min(py, y);
+                            int max = Math.max(py, y);
+                            for (int ny = min; ny <= max; ny++) grid[ny][x] = true;
+                        } else if (py == y) {
+                            int min = Math.min(px, x);
+                            int max = Math.max(px, x);
+                            for (int nx = min; nx <= max; nx++) grid[y][nx] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Returns the wrapped X coordinate when moving a direction
+        int stepX(int x, int dir) {
+            if (dir == 2) return (x - 1 + width) % width;  // left
+            if (dir == 3) return (x + 1) % width;          // right
+            return x;
+        }
+
+        // Returns the wrapped Y coordinate when moving a direction
+        int stepY(int y, int dir) {
+            if (dir == 0) return (y - 1 + height) % height; // up
+            if (dir == 1) return (y + 1) % height;         // down
+            return y;
+        }
+
+        // Checks if a coordinate is occupied by a snake body
+        boolean occupied(int x, int y) {
+            return grid[y][x];
+        }
+
+        // Simple Flood Fill & Distance tracker to satisfy your score check
+        int[] fill(int startX, int startY, int appleX, int appleY) {
+            boolean[][] visited = new boolean[height][width];
+            Queue<int[]> queue = new LinkedList<>();
+            queue.add(new int[]{startX, startY, 0});
+            visited[startY][startX] = true;
+
+            int areaCount = 0;
+            int appleDist = -1;
+
+            while (!queue.isEmpty()) {
+                int[] curr = queue.poll();
+                int cx = curr[0];
+                int cy = curr[1];
+                int dist = curr[2];
+                areaCount++;
+
+                if (cx == appleX && cy == appleY && appleDist == -1) {
+                    appleDist = dist;
+                }
+
+                // Check 4 directions
+                for (int d = 0; d < 4; d++) {
+                    int nx = stepX(cx, d);
+                    int ny = stepY(cy, d);
+                    if (!occupied(nx, ny) && !visited[ny][nx]) {
+                        visited[ny][nx] = true;
+                        queue.add(new int[]{nx, ny, dist + 1});
+                    }
+                }
+            }
+            return new int[] { areaCount, appleDist };
         }
     }
 
